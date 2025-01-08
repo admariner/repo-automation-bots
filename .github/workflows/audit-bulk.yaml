@@ -1,0 +1,32 @@
+on:
+  workflow_dispatch:
+  schedule:
+    # every Monday morning
+    - cron: '0 1 * * 1'
+name: npm-audit-bulk
+jobs:
+  updatePackages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
+        with:
+          node-version: 18
+      - run: npm run run -- npm audit fix
+        continue-on-error: true
+      - uses: googleapis/code-suggester@9c92ffb751cbdc880473aa650013b3a3292f743a # v4
+        env:
+          ACCESS_TOKEN: ${{ secrets.YOSHI_CODE_BOT_TOKEN }}
+        with:
+          command: pr
+          upstream_owner: googleapis
+          upstream_repo: repo-automation-bots
+          description: 'ran `npm audit fix`'
+          title: 'chore: update lock files'
+          message: 'chore: update lock files'
+          branch: update-lock-file-all
+          primary: main
+          force: true
+          git_dir: '.'

@@ -136,6 +136,9 @@ export interface WrapOptions {
 
   // Delay in task scheduling flow control
   flowControlDelayInSeconds?: number;
+
+  // Whether or not to throttle on rate limiting. Defaults to `true`.
+  throttleOnRateLimits?: boolean;
 }
 
 // Default logger, in general, you will want to configure a local logger that
@@ -175,7 +178,10 @@ export async function getBotSecrets(
   options: BotSecretsOptions = {}
 ): Promise<BotSecrets> {
   const projectId = options.projectId ?? process.env.PROJECT_ID;
-  const botName = options.botName ?? process.env.GCF_SHORT_FUNCTION_NAME;
+  const botName =
+    options.botName ??
+    process.env.GCF_SHORT_FUNCTION_NAME ??
+    process.env.BOT_NAME;
   const secretsClient =
     options.secretsClient ??
     new SecretManagerV1.SecretManagerServiceClient({
@@ -252,6 +258,19 @@ function defaultTaskEnvironment(): BotEnvironment {
   return process.env.BOT_RUNTIME === 'run' ? 'run' : 'functions';
 }
 
+function defaultTaskTarget(
+  botEnvironment: BotEnvironment,
+  botName: string
+): string {
+  if (botEnvironment === 'run') {
+    // Cloud Run defaults to dasherized bot name + '-backend'
+    return `${botName.replace(/_/g, '-')}-backend`;
+  } else {
+    // Cloud Functions defaults to underscored bot name
+    return botName.replace(/-/g, '_');
+  }
+}
+
 export class GCFBootstrapper {
   probot?: Probot;
 
@@ -273,9 +292,11 @@ export class GCFBootstrapper {
     options = {
       ...{
         projectId: process.env.PROJECT_ID,
-        functionName: process.env.GCF_SHORT_FUNCTION_NAME,
-        location: process.env.GCF_LOCATION,
+        functionName:
+          process.env.GCF_SHORT_FUNCTION_NAME ?? process.env.BOT_NAME,
+        location: process.env.GCF_LOCATION ?? process.env.BOT_LOCATION,
         payloadBucket: process.env.WEBHOOK_TMP,
+        taskCaller: process.env.TASK_CALLER_SERVICE_ACCOUNT,
       },
       ...options,
     };
@@ -300,18 +321,20 @@ export class GCFBootstrapper {
     this.projectId = options.projectId;
     if (!options.functionName) {
       throw new Error(
-        'Missing required `functionName`. Please provide as a constructor argument or set the GCF_SHORT_FUNCTION_NAME env variable.'
+        'Missing required `functionName`. Please provide as a constructor argument or set the GCF_SHORT_FUNCTION_NAME or BOT_NAME env variable.'
       );
     }
     this.functionName = options.functionName;
     if (!options.location) {
       throw new Error(
-        'Missing required `location`. Please provide as a constructor argument or set the GCF_LOCATION env variable.'
+        'Missing required `location`. Please provide as a constructor argument or set the GCF_LOCATION or BOT_LOCATION env variable.'
       );
     }
     this.location = options.location;
     this.payloadBucket = options.payloadBucket;
-    this.taskTargetName = options.taskTargetName || this.functionName;
+    this.taskTargetName =
+      options.taskTargetName ||
+      defaultTaskTarget(this.taskTargetEnvironment, this.functionName);
     this.taskCaller = options.taskCaller || DEFAULT_TASK_CALLER;
     this.flowControlDelayInSeconds = DEFAULT_FLOW_CONTROL_DELAY_IN_SECOND;
     this.cloudRunURL = undefined;
@@ -529,8 +552,9 @@ export class GCFBootstrapper {
               requestLogger.warn('Rate limit exceeded', rateLimits);
               // On GitHub quota issues, return a 503 to throttle our task queues
               // https://cloud.google.com/tasks/docs/common-pitfalls#backoff_errors_and_enforced_rates
-              response.status(503).send({
-                statusCode: 503,
+              const statusCode = wrapConfig.throttleOnRateLimits ? 503 : 500;
+              response.status(statusCode).send({
+                statusCode: statusCode,
                 body: JSON.stringify({
                   ...rateLimits,
                   message: 'Rate Limited',
@@ -804,7 +828,14 @@ export class GCFBootstrapper {
             continue;
           }
         }
-
+        log.info(
+          `Installation: ${installation.login}(${installation.targetType},
+           suspended:${installation.suspended})`
+        );
+        if (installation.suspended) {
+          log.info("Skipping this installation because it's suspended");
+          continue;
+        }
         const generator = eachInstalledRepository(installation.id, wrapConfig);
         const extraParams: Scheduled = {
           installation: {
@@ -982,7 +1013,8 @@ export class GCFBootstrapper {
   ): Promise<string> {
     if (this.taskTargetEnvironment === 'functions') {
       // https://us-central1-repo-automation-bots.cloudfunctions.net/merge_on_green
-      return `https://${location}-${projectId}.cloudfunctions.net/${botName}`;
+      const functionName = botName.replace(/-/g, '_');
+      return `https://${location}-${projectId}.cloudfunctions.net/${functionName}`;
     } else if (this.taskTargetEnvironment === 'run') {
       if (this.cloudRunURL) {
         return this.cloudRunURL;
@@ -1008,7 +1040,7 @@ export class GCFBootstrapper {
     delayInSeconds = 0
   ) {
     log.info(
-      `scheduling cloud task targeting: ${this.taskTargetEnvironment}, service: ${this.taskTargetName}`
+      `scheduling cloud task targeting: ${this.taskTargetEnvironment}, service: ${this.taskTargetName}, oidc: ${this.taskCaller}`
     );
     // Make a task here and return 200 as this is coming from GitHub
     // queue name can contain only letters ([A-Za-z]), numbers ([0-9]), or hyphens (-):

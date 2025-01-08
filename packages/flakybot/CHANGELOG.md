@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.2](https://github.com/googleapis/repo-automation-bots/compare/flakybot-v1.2.1...flakybot-v1.2.2) (2024-09-27)
+
+
+### Bug Fixes
+
+* **deps:** update to gcf-utils v16 ([#5481](https://github.com/googleapis/repo-automation-bots/issues/5481)) ([5a79218](https://github.com/googleapis/repo-automation-bots/commit/5a792185c8a27ef673f8667951539cb258ac40c7))
+
+## [1.2.1](https://github.com/googleapis/repo-automation-bots/compare/flakybot-v1.2.0...flakybot-v1.2.1) (2024-09-06)
+
+
+### Bug Fixes
+
+* update base node image for flakybot to node:18-slim ([#5289](https://github.com/googleapis/repo-automation-bots/issues/5289)) ([15ba411](https://github.com/googleapis/repo-automation-bots/commit/15ba411cb15d89a32bc8fde20ba782248779e778))
+
 ## [1.2.0](https://github.com/googleapis/repo-automation-bots/compare/flakybot-1.1.0...flakybot-v1.2.0) (2023-02-27)
 
 
