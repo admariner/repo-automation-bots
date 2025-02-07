@@ -45,7 +45,6 @@ function loadConfig(configFile: string) {
 describe('ConventionalCommitLint', () => {
   let probot: Probot;
   const sandbox = sinon.createSandbox();
-  let addOrUpdateIssueCommentStub: sinon.SinonStub;
   let getAuthenticatedOctokitStub: sinon.SinonStub;
   const pr11 = require(resolve(fixturesPath, './pr11'));
 
@@ -73,10 +72,6 @@ describe('ConventionalCommitLint', () => {
       }),
     });
     probot.load(myProbotApp);
-    addOrUpdateIssueCommentStub = sandbox.stub(
-      gcfUtilsModule,
-      'addOrUpdateIssueComment'
-    );
     getAuthenticatedOctokitStub = sandbox.stub(
       gcfUtilsModule,
       'getAuthenticatedOctokit'
@@ -91,7 +86,6 @@ describe('ConventionalCommitLint', () => {
 
   it('sets a "failure" context on PR, if commits fail linting', async () => {
     stubConfig();
-    addOrUpdateIssueCommentStub.resolves(null);
     const pr11WithBadMessage = require(resolve(
       fixturesPath,
       './pr11WithBadMessage'
@@ -115,12 +109,10 @@ describe('ConventionalCommitLint', () => {
       .reply(200);
     await probot.receive({name: 'pull_request', payload, id: 'abc123'});
     requests.done();
-    sinon.assert.notCalled(addOrUpdateIssueCommentStub);
   });
 
-  it('adds a comment when the commit message and the PR title differ', async () => {
+  it('adds an additional check when the commit message and the PR title differ', async () => {
     stubConfig();
-    addOrUpdateIssueCommentStub.resolves(null);
     const pr11WithCorrectMessage = require(resolve(
       fixturesPath,
       './pr11WithCorrectMessage'
@@ -141,15 +133,14 @@ describe('ConventionalCommitLint', () => {
         snapshot(body);
         return true;
       })
+      .twice()
       .reply(200);
     await probot.receive({name: 'pull_request', payload, id: 'abc123'});
     requests.done();
-    sinon.assert.calledOnce(addOrUpdateIssueCommentStub);
   });
 
   it('should post "success" context on PR with always_check_pr_title set to true', async () => {
     stubConfig('always_check_pr_title.yaml');
-    addOrUpdateIssueCommentStub.resolves(null);
     const pr11WithCorrectMessage = require(resolve(
       fixturesPath,
       './pr11WithCorrectMessage'
@@ -302,6 +293,29 @@ describe('ConventionalCommitLint', () => {
       const payload = require(resolve(
         fixturesPath,
         './pull_request_automerge'
+      ));
+      // create a history that has one valid commit, and one invalid commit:
+      const invalidCommit = require(resolve(fixturesPath, './invalid_commit'));
+      const requests = nock('https://api.github.com')
+        .get('/repos/bcoe/test-release-please/pulls/11/commits?per_page=100')
+        .reply(200, invalidCommit)
+        .get('/repos/bcoe/test-release-please/pulls/11')
+        .reply(200, pr11)
+        .post('/repos/bcoe/test-release-please/check-runs', body => {
+          snapshot(body);
+          return true;
+        })
+        .reply(200);
+
+      await probot.receive({name: 'pull_request', payload, id: 'abc123'});
+      requests.done();
+    });
+
+    it('has a valid title, invalid commit, automerge: exact label', async () => {
+      stubConfig();
+      const payload = require(resolve(
+        fixturesPath,
+        './pull_request_automerge_exact'
       ));
       // create a history that has one valid commit, and one invalid commit:
       const invalidCommit = require(resolve(fixturesPath, './invalid_commit'));

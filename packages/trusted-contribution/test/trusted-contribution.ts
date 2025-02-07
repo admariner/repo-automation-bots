@@ -31,6 +31,8 @@ import yaml from 'js-yaml';
 import {logger} from 'gcf-utils';
 import * as botConfigModule from '@google-automations/bot-config-utils';
 import * as gcfUtils from 'gcf-utils';
+// addOrUpdateIssueComment is exported from the primary module, but is defined in this module
+import * as issueUtilsModule from '@google-automations/issue-utils/build/src/issue-comments';
 
 import {WELL_KNOWN_CONFIGURATION_FILE} from '../src/config';
 import myProbotApp from '../src/trusted-contribution';
@@ -51,6 +53,7 @@ describe('TrustedContributionTestRunner', () => {
   let requests: nock.Scope;
   let getConfigStub: sinon.SinonStub;
   let validateConfigStub: sinon.SinonStub;
+  let addOrUpdateCommentStub: sinon.SinonStub;
 
   beforeEach(() => {
     probot = createProbot({
@@ -70,6 +73,10 @@ describe('TrustedContributionTestRunner', () => {
       'validateConfigChanges'
     );
     sandbox.stub(gcfUtils, 'getAuthenticatedOctokit').resolves(new Octokit());
+    addOrUpdateCommentStub = sandbox.stub(
+      issueUtilsModule,
+      'addOrUpdateIssueComment'
+    );
   });
 
   afterEach(() => {
@@ -757,6 +764,71 @@ describe('TrustedContributionTestRunner', () => {
     });
   });
 
+  describe('with commenting', () => {
+    beforeEach(() => {
+      getConfigStub.resolves(loadConfig('comments.yml'));
+    });
+
+    describe('opened pull request', () => {
+      it('comments on PR, if PR author is not a trusted contributor', async () => {
+        addOrUpdateCommentStub.resolves();
+        await probot.receive({
+          name: 'pull_request',
+          payload: {
+            action: 'opened',
+            pull_request: {
+              number: 3,
+              head: {
+                sha: 'testsha',
+              },
+              user: {
+                login: 'random-person',
+              },
+            },
+            repository: {
+              name: 'google-auth-library-java',
+              owner: {
+                login: 'chingor13',
+              },
+            },
+            installation: {id: 1234},
+          } as PullRequestOpenedEvent,
+          id: 'abc123',
+        });
+        requests.done();
+        sinon.assert.calledOnce(addOrUpdateCommentStub);
+      });
+      it('skips commenting on PR, if PR author is a collaborator', async () => {
+        await probot.receive({
+          name: 'pull_request',
+          payload: {
+            action: 'opened',
+            pull_request: {
+              number: 3,
+              head: {
+                sha: 'testsha',
+              },
+              user: {
+                login: 'random-person',
+              },
+              author_association: 'COLLABORATOR',
+            },
+            repository: {
+              name: 'google-auth-library-java',
+              owner: {
+                login: 'chingor13',
+              },
+            },
+            installation: {id: 1234},
+          } as PullRequestOpenedEvent,
+          id: 'abc123',
+        });
+        requests.done();
+        sinon.assert.notCalled(addOrUpdateCommentStub);
+      });
+    });
+  });
+
   it('should add a comment if configured with annotations', async () => {
     getConfigStub.resolves(loadConfig('gcbrun.yml'));
     const sandbox = sinon.createSandbox();
@@ -765,7 +837,6 @@ describe('TrustedContributionTestRunner', () => {
       'getAuthenticatedOctokit'
     );
     const testOctokit = new Octokit();
-    const octokitIssuesSpy = sandbox.spy(testOctokit.issues, 'createComment');
     getAuthenticatedOctokitStub.resolves(testOctokit);
     requests
       .get(
@@ -808,7 +879,6 @@ describe('TrustedContributionTestRunner', () => {
       process.env.PROJECT_ID || '',
       utilsModule.SECRET_NAME_FOR_COMMENT_PERMISSION
     );
-    assert(octokitIssuesSpy.calledOnce);
   });
 
   it('should log an error if the config cannot be fetched', async () => {

@@ -54,10 +54,13 @@ describe('SyncRepoSettings', () => {
   });
 
   it('should fill in default values', async () => {
-    const updateRepo = sandbox.stub(octokit.repos, 'update');
-    const updateBranch = sandbox.stub(octokit.repos, 'updateBranchProtection');
+    const updateRepo = sandbox.stub(octokit.rest.repos, 'update');
+    const updateBranch = sandbox.stub(
+      octokit.rest.repos,
+      'updateBranchProtection'
+    );
     const updateTeams = sandbox.stub(
-      octokit.teams,
+      octokit.rest.teams,
       'addOrUpdateRepoPermissionsInOrg'
     );
     const config = loadConfig('localConfig.yaml');
@@ -68,7 +71,7 @@ describe('SyncRepoSettings', () => {
     });
     sinon.assert.calledOnce(updateRepo);
     sinon.assert.calledOnce(updateBranch);
-    sinon.assert.calledThrice(updateTeams);
+    sinon.assert.calledOnce(updateTeams);
 
     // grab first arg of first call
     const branchProtection = updateBranch.args[0][0];
@@ -95,7 +98,7 @@ describe('SyncRepoSettings', () => {
     });
     sinon.assert.calledOnce(updateRepo);
     sinon.assert.calledOnce(updateBranch);
-    sinon.assert.calledThrice(updateTeams);
+    sinon.assert.calledOnce(updateTeams);
 
     // grab first arg of first call
     const branchProtection = updateBranch.args[0][0];
@@ -124,6 +127,6 @@ describe('SyncRepoSettings', () => {
     });
     sinon.assert.calledOnce(updateRepo);
     sinon.assert.calledTwice(updateBranch);
-    sinon.assert.calledThrice(updateTeams);
+    sinon.assert.calledOnce(updateTeams);
   });
 });

@@ -677,6 +677,54 @@ describe('GCFBootstrapper', () => {
       assert.strictEqual(response.statusCode, 503);
     });
 
+    it('returns 500 on rate limit errors if configured to skip throttling', async () => {
+      await mockBootstrapper({throttleOnRateLimits: false}, async app => {
+        app.on('issues', async () => {
+          throw new RequestError(
+            'API rate limit exceeded for user ID 3456',
+            403,
+            {
+              response: {
+                headers: {
+                  'x-ratelimit-remaining': '0',
+                  'x-ratelimit-reset': '1653880306',
+                  'x-ratelimit-limit': '5000',
+                  'x-ratelimit-resource': 'core',
+                },
+                status: 403,
+                url: '',
+                data: '',
+              },
+              request: {
+                headers: {},
+                method: 'POST',
+                url: '',
+              },
+            }
+          );
+        });
+      });
+      req.body = {
+        installation: {id: 1},
+      };
+      req.headers = {};
+      req.headers['x-github-event'] = 'issues';
+      req.headers['x-github-delivery'] = '123';
+      req.headers['x-cloudtasks-taskname'] = 'my-task';
+
+      await handler(req, response);
+
+      sinon.assert.calledOnce(configStub);
+      sinon.assert.notCalled(issueSpy);
+      sinon.assert.notCalled(repositoryCronSpy);
+      sinon.assert.notCalled(installationCronSpy);
+      sinon.assert.notCalled(globalCronSpy);
+      sinon.assert.notCalled(sendStatusStub);
+      sinon.assert.called(sendStub);
+
+      assert.strictEqual(response.statusCode, 500);
+    });
+
     it('returns 503 on secondary rate limit errors', async () => {
       await mockBootstrapper(undefined, async app => {
         app.on('issues', async () => {
@@ -1827,7 +1875,7 @@ describe('GCFBootstrapper', () => {
               'X-GitHub-Delivery': 'some-request-id',
               'Content-Type': 'application/json',
             }),
-            url: 'https://my-location-my-project.cloudfunctions.net/my-function-name',
+            url: 'https://my-location-my-project.cloudfunctions.net/my_function_name',
           },
         },
       });
@@ -1863,7 +1911,7 @@ describe('GCFBootstrapper', () => {
               'X-GitHub-Delivery': 'some-request-id',
               'Content-Type': 'application/json',
             }),
-            url: 'https://my-location-my-project.cloudfunctions.net/my-function-name',
+            url: 'https://my-location-my-project.cloudfunctions.net/my_function_name',
           },
         },
       });
@@ -1940,7 +1988,7 @@ describe('GCFBootstrapper', () => {
       // https://github.com/DefinitelyTyped/DefinitelyTyped/issues/36436
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sinon.assert.calledOnceWithExactly(getServiceStub as any, {
-        name: 'projects/my-project/locations/my-location/services/my-function-name',
+        name: 'projects/my-project/locations/my-location/services/my-function-name-backend',
       });
       // Make sure the Cloud Run service URL is cached.
       await bootstrapper.enqueueTask({
@@ -1992,7 +2040,7 @@ describe('GCFBootstrapper', () => {
       // https://github.com/DefinitelyTyped/DefinitelyTyped/issues/36436
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sinon.assert.calledOnceWithExactly(getServiceStub as any, {
-        name: 'projects/my-project/locations/my-location/services/my-function-name',
+        name: 'projects/my-project/locations/my-location/services/my-function-name-backend',
       });
     });
 
@@ -2036,7 +2084,7 @@ describe('GCFBootstrapper', () => {
       // https://github.com/DefinitelyTyped/DefinitelyTyped/issues/36436
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sinon.assert.calledOnceWithExactly(getServiceStub as any, {
-        name: 'projects/my-project/locations/my-location/services/my-function-name',
+        name: 'projects/my-project/locations/my-location/services/my-function-name-backend',
       });
     });
 
@@ -2068,7 +2116,7 @@ describe('GCFBootstrapper', () => {
               'X-GitHub-Delivery': 'some-request-id',
               'Content-Type': 'application/json',
             }),
-            url: 'https://my-location-my-project.cloudfunctions.net/my-function-name-backend',
+            url: 'https://my-location-my-project.cloudfunctions.net/my_function_name_backend',
           },
         },
       });

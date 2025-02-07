@@ -31,7 +31,7 @@ import {forAllInAsyncGroups} from './parallel-work';
 
 const TABLE = 'mog-prs';
 const datastore = new Datastore();
-const MAX_TEST_TIME = 1000 * 60 * 60 * 6; // 6 hr.
+const MAX_TEST_TIME = 1000 * 60 * 60 * 24; // 24 hr.
 const MAX_ENTRIES = 25;
 
 handler.allowlist = [
@@ -507,10 +507,10 @@ handler.scanForMissingPullRequests = async function scanForMissingPullRequests(
   // Github does not support searching the labels with 'OR'.
   // The searching for issues is considered to be an "AND" instead of an "OR" .
   const [issuesAutomergeLabel, issuesAutomergeExactLabel] = await Promise.all([
-    github.paginate(github.search.issuesAndPullRequests, {
+    github.paginate('GET /search/issues', {
       q: `is:open is:pr user:${org} label:"${MERGE_ON_GREEN_LABEL}"`,
     }),
-    github.paginate(github.search.issuesAndPullRequests, {
+    github.paginate('GET /search/issues', {
       q: `is:open is:pr user:${org} label:"${MERGE_ON_GREEN_LABEL_SECURE}"`,
     }),
   ]);
