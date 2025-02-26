@@ -44,6 +44,7 @@ const sandbox = sinon.createSandbox();
 
 describe('OwlBot', () => {
   let probot: Probot;
+  let octokit: Octokit;
   beforeEach(async () => {
     sandbox.stub(process, 'env').value({
       APP_ID: '1234354',
@@ -71,7 +72,8 @@ describe('OwlBot', () => {
       gcfUtilsModule,
       'getAuthenticatedOctokit'
     );
-    getAuthenticatedOctokitStub.resolves(new Octokit());
+    octokit = new Octokit();
+    getAuthenticatedOctokitStub.resolves(octokit);
     await probot.load((app: Probot) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       owlbot.OwlBot('abc123', app, sandbox.stub() as any);
@@ -834,7 +836,7 @@ describe('OwlBot', () => {
         },
         repository: {
           default_branch: 'default_branch',
-          full_name: 'full_name',
+          full_name: 'googleapis/name',
           name: 'name',
         },
       };
@@ -919,8 +921,7 @@ describe('OwlBot', () => {
       assert.strictEqual(refreshConfigsStub.called, false);
     });
   });
-
-  it('triggers build when "owlbot:run" label is added to fork', async () => {
+  it('does not trigger build when "owlbot:run" label is added to fork', async () => {
     const payload = {
       action: 'labeled',
       installation: {
@@ -957,10 +958,92 @@ describe('OwlBot', () => {
     image: node
     digest: sha256:9205bb385656cd196f5303b03983282c95c2dfab041d275465c525b501574e5c`;
     const githubMock = nock('https://api.github.com')
+      .delete('/repos/googleapis/owl-bot-testing/issues/33/labels/owlbot%3Arun')
+      .reply(200);
+    const triggerBuildStub = sandbox
+      .stub(core, 'triggerPostProcessBuild')
+      .resolves({
+        text: 'the text for check',
+        summary: 'summary for check',
+        conclusion: 'success',
+        detailsURL: 'http://www.example.com',
+      });
+    const updatePullRequestStub = sandbox.stub(
+      core,
+      'updatePullRequestAfterPostProcessor'
+    );
+    const hasOwlBotLoopStub = sandbox
+      .stub(core, 'hasOwlBotLoop')
+      .resolves(false);
+    const createCheckStub = sandbox.stub(core, 'createCheck');
+    const loggerStub = sandbox.stub(logger, 'info');
+    await probot.receive({
+      name: 'pull_request',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      payload: payload as any,
+      id: 'abc123',
+    });
+    sandbox.assert.calledWith(
+      loggerStub,
+      sandbox.match(/.*skipping PR from fork*/)
+    );
+    sandbox.assert.notCalled(triggerBuildStub);
+    sandbox.assert.calledWith(
+      createCheckStub,
+      sinon.match.has('conclusion', 'skipped')
+    );
+    sandbox.assert.calledWith(
+      createCheckStub,
+      sinon.match.has(
+        'text',
+        'Ignored by Owl Bot because the pull request was created from a fork. See go/owlbot-skip-forks.'
+      )
+    );
+    sandbox.assert.notCalled(hasOwlBotLoopStub);
+    sandbox.assert.notCalled(updatePullRequestStub);
+    githubMock.done();
+  });
+  it('triggers build when "owlbot:run" label is added to yoshi-code-bot fork PR', async () => {
+    const payload = {
+      action: 'labeled',
+      installation: {
+        id: 12345,
+      },
+      sender: {
+        login: 'yoshi-code-bot',
+      },
+      pull_request: {
+        number: 33,
+        labels: [
+          {
+            name: OWLBOT_RUN_LABEL,
+          },
+        ],
+        head: {
+          repo: {
+            full_name: 'yoshi-code-bot/owl-bot-testing',
+          },
+          ref: 'abc123',
+        },
+        base: {
+          ref: 'blerg',
+          repo: {
+            full_name: 'googleapis/owl-bot-testing',
+          },
+        },
+      },
+      label: {
+        name: OWLBOT_RUN_LABEL,
+      },
+    };
+    const config = `docker:
+    image: node
+    digest: sha256:9205bb385656cd196f5303b03983282c95c2dfab041d275465c525b501574e5c`;
+    const githubMock = nock('https://api.github.com')
       .get('/repos/googleapis/owl-bot-testing/pulls/33')
       .reply(200, payload.pull_request)
       .get(
-        '/repos/rennie/owl-bot-testing/contents/.github%2F.OwlBot.lock.yaml?ref=abc123'
+        '/repos/yoshi-code-bot/owl-bot-testing/contents/.github%2F.OwlBot.lock.yaml?ref=abc123'
       )
       .reply(200, {
         content: Buffer.from(config).toString('base64'),
@@ -1567,10 +1650,7 @@ describe('OwlBot', () => {
       payload: payload as any,
       id: 'abc123',
     });
-    sandbox.assert.calledWith(
-      createCheckStub,
-      sinon.match.has('conclusion', 'success')
-    );
+    sandbox.assert.notCalled(createCheckStub);
     githubMock.done();
   });
   it('returns early and adds success status if base is not default branch', async () => {
@@ -1668,9 +1748,44 @@ describe('OwlBot', () => {
     );
     sandbox.assert.calledWith(
       createCheckStub,
-      sinon.match.has('text', 'Error: lock file did not contain "docker" key')
+      sinon.match.has(
+        'text',
+        'Error: lock file did not contain "docker" key. Logs: go/cloud-sdk-automation-howtos#logs'
+      )
     );
     githubMock.done();
+  });
+
+  describe('merge_group', () => {
+    it('skips the check', async () => {
+      const payload = {
+        action: 'checks_requested',
+        installation: {
+          id: 12345,
+        },
+        sender: {
+          login: 'rennie',
+        },
+        merge_group: {
+          head_sha: 'abc123',
+          head_ref: 'refs/heads/some-feature',
+          base_sha: 'def234',
+          base_ref: 'refs/heads/main',
+        },
+        repository: {
+          name: 'Hello-World',
+          full_name: 'octocat/Hello-World',
+        },
+      };
+      const createCheckStub = sandbox.stub(octokit.checks, 'create');
+      await probot.receive({
+        name: 'merge_group' as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        payload: payload as any,
+        id: 'abc123',
+      });
+      sandbox.assert.calledOnce(createCheckStub);
+    });
   });
 });
 
@@ -1974,6 +2089,9 @@ function pullRequestEditedEventFrom(
       },
       number: 48,
       body: newBody,
+      user: {
+        login: 'gcf-owl-bot[bot]',
+      },
     },
     changes: {
       body: {

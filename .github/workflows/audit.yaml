@@ -1,8 +1,5 @@
 on:
   workflow_dispatch:
-  schedule:
-    # every Monday morning
-    - cron: '0 1 * * 1'
 name: npm-audit
 jobs:
   findPackages:
@@ -10,12 +7,12 @@ jobs:
     outputs:
       nodePaths: ${{ steps.interrogate.outputs.nodePaths }}
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v3
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
         with:
-          node-version: 14
+          node-version: 18
       - id: interrogate
         run: node ./.github/workflows/list-node-paths-for-deps.js
   updateDeps:
@@ -27,13 +24,14 @@ jobs:
       matrix:
         package: ${{fromJson(needs.findPackages.outputs.nodePaths)}}
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
-      - uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v3
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 18
       - run: echo ./packages/${{ matrix.package }}
       - run: cd ./packages/${{ matrix.package }} && npm audit fix
-      - uses: googleapis/code-suggester@6222c8894a0776306b5496b62cb20b408c95efd2 # v4
+        continue-on-error: true
+      - uses: googleapis/code-suggester@9c92ffb751cbdc880473aa650013b3a3292f743a # v4
         env:
           ACCESS_TOKEN: ${{ secrets.YOSHI_CODE_BOT_TOKEN }}
         with:

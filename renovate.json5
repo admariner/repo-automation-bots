@@ -1,0 +1,14 @@
+{
+  "extends": [
+    "config:recommended",
+    // update base images in Dockerfiles
+    ":docker",
+    // prevent upgrading to packages that can be unpublished 
+    "npm:unpublishSafe",
+  ],
+  "enabledManagers": [
+    "dockerfile", 
+    "github-actions",
+    "npm",
+  ],
+}
