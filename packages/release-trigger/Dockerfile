@@ -14,9 +14,42 @@
 
 # Use a multi-stage docker build to limit production dependencies.
 
+FROM node:18.20.5-bullseye-slim AS BASE
+
+# Install pyenv dependencies
+RUN apt-get update && \
+    apt-get install -y make build-essential libssl-dev zlib1g-dev libbz2-dev \
+    libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
+    xz-utils tk-dev libffi-dev liblzma-dev python3-openssl && \
+    apt-get upgrade -y
+
+# Remove base python3 installation, as we install our own version.
+RUN rm -r /usr/bin/python3
+
+# Remove unnecessary cross-spawn from npm to resolve CVE-2024-21538
+RUN rm -r /usr/local/lib/node_modules/npm/node_modules/cross-spawn/
+
+USER node
+
+# Install pyenv
+RUN curl -L -o /tmp/pyenv.tar.gz https://github.com/pyenv/pyenv/archive/refs/tags/v2.4.20.tar.gz && \
+    mkdir ~/.pyenv && \
+    tar -xzvf /tmp/pyenv.tar.gz -C ~/.pyenv --strip-components=1 && \
+    echo 'export PATH="/home/node/.pyenv/bin:$PATH"' >> ~/.profile && \
+    echo 'export PATH="/home/node/.pyenv/shims:$PATH"' >> ~/.profile && \
+    echo 'eval "$(pyenv init -)"' >> ~/.profile && \
+    echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.profile
+
+ENV PATH="/home/node/.pyenv/bin:/home/node/.pyenv/shims:${PATH}"
+
+# Install python
+RUN pyenv install 3.10.13 && \
+    pyenv global 3.10.13 && \
+    python3 -m pip install --upgrade pip setuptools
+
 # Use the Yoshi Node.js 14 image - it has python3 installed
 # https://github.com/googleapis/testing-infra-docker/tree/master/node/14-user
-FROM gcr.io/cloud-devrel-kokoro-resources/node:14-user AS BUILD
+FROM BASE AS BUILD
 
 WORKDIR /home/node
 
@@ -33,7 +66,7 @@ COPY . ./
 
 RUN npm run compile
 
-FROM gcr.io/cloud-devrel-kokoro-resources/node:14-user
+FROM BASE
 
 WORKDIR /home/node
 

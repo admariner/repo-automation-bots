@@ -21,9 +21,7 @@ import {Octokit} from '@octokit/rest';
 
 //import {ILint} from '@commitlint/lint';
 import lint from '@commitlint/lint';
-
-import {addOrUpdateIssueComment, GCFLogger} from 'gcf-utils';
-
+import {GCFLogger} from 'gcf-utils';
 import {rules} from '@commitlint/config-conventional';
 
 type PullsListCommitsResponseData = components['schemas']['commit'][];
@@ -42,6 +40,7 @@ type Label = {
 };
 
 const AUTOMERGE_LABEL = 'automerge';
+const AUTOMERGE_EXACT_LABEL = 'automerge: exact';
 
 // modify rules slightly:
 // see: https://github.com/conventional-changelog/commitlint/blob/master/%40commitlint/config-conventional/index.js
@@ -72,7 +71,7 @@ export async function scanPullRequest(
   const commits: PullsListCommitsResponseData = [];
   try {
     for await (const response of octokit.paginate.iterator(
-      octokit.rest.pulls.listCommits,
+      'GET /repos/{owner}/{repo}/pulls/{pull_number}/commits',
       commitParams
     )) {
       commits.push(...response.data);
@@ -91,11 +90,11 @@ export async function scanPullRequest(
   let message = pull_request.title;
   let target = 'The PR title';
 
-  const hasAutomergeLabel = pull_request.labels
-    .map((label: Label) => {
-      return label.name;
-    })
-    .includes(AUTOMERGE_LABEL);
+  const labels = pull_request.labels.map((label: Label) => {
+    return label.name;
+  });
+  const hasAutomergeLabel =
+    labels.includes(AUTOMERGE_LABEL) || labels.includes(AUTOMERGE_EXACT_LABEL);
 
   let refreshed_pr: PullRequest;
 
@@ -157,31 +156,25 @@ export async function scanPullRequest(
         `commit message: ${commits[0].commit.message.split('\n')[0]}`
       );
       logger.info(`PR title: ${pull_request.title}`);
-      const owner = pull_request.base.repo.owner?.login;
-      const repo = context.payload.repository.name;
-      const prNumber = pull_request.number;
-      const installationId = context.payload.installation?.id;
-      const message =
+      const summary =
         '🤖 I detect that the PR title and the commit message' +
         " differ and there's only one commit. To use the PR title for the" +
         " commit history, you can use Github's automerge feature with" +
         ' squashing, or use `automerge` label. Good luck human!\n\n' +
         ' -- conventional-commit-lint bot\n' +
         'https://conventionalcommits.org/';
-      try {
-        await addOrUpdateIssueComment(
-          octokit,
-          owner as string,
-          repo,
-          prNumber,
-          installationId as number,
-          message,
-          false
-        );
-      } catch (err) {
-        // This is a solely convenience feature, so we ignore errors.
-        logger.warn(`Failed to add a comment: ${err}`);
-      }
+      await octokit.checks.create({
+        owner: pull_request.base.repo.owner?.login,
+        repo: context.payload.repository.name,
+        head_sha: commits[commits.length - 1].sha as string,
+        conclusion: 'failure',
+        name: 'conventionalcommits.org - Title Mismatch',
+        output: {
+          title: 'PR title does not match commit message',
+          summary,
+          text: summary,
+        },
+      });
     }
   }
 

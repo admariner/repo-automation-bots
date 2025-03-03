@@ -87,6 +87,65 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 
 
+## [16.2.2](https://github.com/googleapis/repo-automation-bots/compare/gcf-utils-v16.2.1...gcf-utils-v16.2.2) (2025-02-21)
+
+
+### Bug Fixes
+
+* need to pass in string to webhooks.verify ([#5673](https://github.com/googleapis/repo-automation-bots/issues/5673)) ([eb5c6c5](https://github.com/googleapis/repo-automation-bots/commit/eb5c6c55abc728a6b126931960cc87fa3815acee))
+
+## [16.2.1](https://github.com/googleapis/repo-automation-bots/compare/gcf-utils-v16.2.0...gcf-utils-v16.2.1) (2024-11-26)
+
+
+### Bug Fixes
+
+* set default taskTargetName based on runtime environment ([#5585](https://github.com/googleapis/repo-automation-bots/issues/5585)) ([53ab7ec](https://github.com/googleapis/repo-automation-bots/commit/53ab7ecb05492b8f3cf46f0a77fbd88727dfffb0))
+
+## [16.2.0](https://github.com/googleapis/repo-automation-bots/compare/gcf-utils-v16.1.1...gcf-utils-v16.2.0) (2024-11-25)
+
+
+### Features
+
+* allow overriding the service account for background tasks ([4667a4e](https://github.com/googleapis/repo-automation-bots/commit/4667a4e5a9989bafdc1699741b916dca8983a9bf))
+* handle BOT_NAME and BOT_LOCATION configuration via env ([#5583](https://github.com/googleapis/repo-automation-bots/issues/5583)) ([2bbb00c](https://github.com/googleapis/repo-automation-bots/commit/2bbb00c155f1eebfd55395964f105b1dd1742dcb))
+
+
+### Bug Fixes
+
+* ensure that Cloud Function URL uses underscored name of bot ([2bbb00c](https://github.com/googleapis/repo-automation-bots/commit/2bbb00c155f1eebfd55395964f105b1dd1742dcb))
+
+## [16.1.1](https://github.com/googleapis/repo-automation-bots/compare/gcf-utils-v16.1.0...gcf-utils-v16.1.1) (2024-10-24)
+
+
+### Bug Fixes
+
+* handleScheduledRepository to skip suspended repositories ([#5539](https://github.com/googleapis/repo-automation-bots/issues/5539)) ([bf770a1](https://github.com/googleapis/repo-automation-bots/commit/bf770a16ed57f20ca0b0c498332d3509b78e31c4))
+
+## [16.1.0](https://github.com/googleapis/repo-automation-bots/compare/gcf-utils-v16.0.1...gcf-utils-v16.1.0) (2024-09-27)
+
+
+### Features
+
+* add ability to configure app to skip throttling on rate limits ([#5517](https://github.com/googleapis/repo-automation-bots/issues/5517)) ([fc03235](https://github.com/googleapis/repo-automation-bots/commit/fc0323503fb62dfa0873e58aaf2b701273103d0f))
+
+## [16.0.1](https://github.com/googleapis/repo-automation-bots/compare/gcf-utils-v16.0.0...gcf-utils-v16.0.1) (2024-09-09)
+
+
+### Bug Fixes
+
+* **deps:** lock octokit/graphql to commonjs version ([#5471](https://github.com/googleapis/repo-automation-bots/issues/5471)) ([47d51a3](https://github.com/googleapis/repo-automation-bots/commit/47d51a3b47f5176fc8c699ca0744d70a040e5569))
+
+## [16.0.0](https://github.com/googleapis/repo-automation-bots/compare/gcf-utils-v15.0.1...gcf-utils-v16.0.0) (2024-09-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** update google-cloud library major versions ([#5463](https://github.com/googleapis/repo-automation-bots/issues/5463))
+
+### Bug Fixes
+
+* **deps:** update google-cloud library major versions ([#5463](https://github.com/googleapis/repo-automation-bots/issues/5463)) ([1319a61](https://github.com/googleapis/repo-automation-bots/commit/1319a6150545685487be5469b7ce7fa0d6ea469d))
+
 ## [15.0.1](https://github.com/googleapis/repo-automation-bots/compare/gcf-utils-v15.0.0...gcf-utils-v15.0.1) (2023-09-26)
 
 
